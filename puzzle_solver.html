@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solver de Rompecabezas de 8 Piezas</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+
+        .puzzle-container {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            grid-template-rows: repeat(3, 100px);
+            gap: 5px;
+            margin-bottom: 20px;
+        }
+
+        .puzzle-tile {
+            width: 100px;
+            height: 100px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2em;
+            background-color: lightblue;
+            border-radius: 10px;
+            border: 2px solid #333;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        .empty-tile {
+            background-color: white;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            margin: 5px;
+            border: none;
+            background-color: #28a745;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        button:hover {
+            background-color: #218838;
+        }
+
+        .explored-states {
+            margin-top: 20px;
+            font-family: monospace;
+            width: 100%;
+            max-width: 300px;
+            text-align: left;
+        }
+
+        .explored-states strong {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+
+        pre {
+            background-color: #fff;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Solver de Rompecabezas de 8 Piezas</h1>
+
+    <div class="puzzle-container" id="puzzle">
+        <div class="puzzle-tile" id="tile0">1</div>
+        <div class="puzzle-tile" id="tile1">2</div>
+        <div class="puzzle-tile" id="tile2">3</div>
+        <div class="puzzle-tile" id="tile3">4</div>
+        <div class="puzzle-tile" id="tile4">5</div>
+        <div class="puzzle-tile" id="tile5">6</div>
+        <div class="puzzle-tile" id="tile6">7</div>
+        <div class="puzzle-tile" id="tile7">8</div>
+        <div class="puzzle-tile empty-tile" id="tile8"></div>
+    </div>
+
+    <button onclick="startSolving()">Iniciar Resolución</button>
+    <button onclick="generateRandomPuzzle()">Generar Rompecabezas Aleatorio</button>
+    <button onclick="resetPuzzle()">Reiniciar Rompecabezas</button>
+
+    <p id="solution-steps"></p>
+
+    <div class="explored-states">
+        <strong>Estados Explorados:</strong>
+        <pre id="explored-set"></pre>
+    </div>
+
+    <script>
+        let puzzle = [1, 5, 2, 6, 8, 7, 3, 0, 4]; // Estado inicial del rompecabezas (0 representa el espacio vacío)
+        const goalState = [1, 2, 3, 4, 5, 6, 7, 8, 0]; // Estado meta
+        let solution = [];
+        let step = 0;
+        let autoSolveInterval = null;
+        let exploredSet = [];
+
+        // Función para renderizar el estado del rompecabezas en la pantalla
+        function renderPuzzle() {
+            for (let i = 0; i < puzzle.length; i++) {
+                const tile = document.getElementById('tile' + i);
+                if (puzzle[i] === 0) {
+                    tile.textContent = '';
+                    tile.classList.add('empty-tile');
+                } else {
+                    tile.textContent = puzzle[i];
+                    tile.classList.remove('empty-tile');
+                }
+            }
+        }
+
+        // Función para renderizar los estados explorados
+        function renderExploredSet() {
+            const exploredSetElement = document.getElementById('explored-set');
+            exploredSetElement.textContent = ''; // Limpiar el contenido anterior
+            exploredSet.forEach(state => {
+                exploredSetElement.textContent += formatStateAsMatrix(state) + '\n';
+            });
+        }
+
+        // Función para formatear un estado como una matriz 3x3
+        function formatStateAsMatrix(state) {
+            let matrixString = '';
+            for (let i = 0; i < state.length; i++) {
+                matrixString += state[i] === 0 ? ' ' : state[i]; // Reemplazar 0 con espacio vacío
+                matrixString += (i % 3 === 2) ? '\n' : ' ';
+            }
+            return matrixString;
+        }
+
+        // Función para iniciar la resolución del rompecabezas automáticamente
+        function startSolving() {
+            solution = aStar(puzzle, goalState);
+            step = 0;
+
+            if (solution) {
+                exploredSet = solution; // Mostrar solo los estados que forman parte de la solución
+                renderExploredSet(); // Actualizar la vista de los estados explorados
+                document.getElementById('solution-steps').textContent = `Solución encontrada en ${solution.length - 1} pasos. Resolviendo...`;
+                autoSolveInterval = setInterval(function () {
+                    if (step < solution.length) {
+                        puzzle = solution[step];
+                        renderPuzzle();
+                        step++;
+                    } else {
+                        clearInterval(autoSolveInterval);
+                        document.getElementById('solution-steps').textContent = '¡Rompecabezas resuelto!';
+                    }
+                }, 500); // Retraso de 500ms entre pasos
+            } else {
+                document.getElementById('solution-steps').textContent = '¡No se encontró solución!';
+            }
+        }
+
+        // Reconstruir el camino desde el estado meta hasta el inicial
+        function reconstructPath(cameFrom, currentState) {
+            const totalPath = [currentState];
+            while (cameFrom.has(currentState.toString())) {
+                currentState = cameFrom.get(currentState.toString());
+                totalPath.unshift(currentState);
+            }
+            return totalPath;
+        }
+
+
+        // Algoritmo A*
+        function aStar(start, goal) {
+            const openSet = [];
+            const closedSet = new Set();
+            const cameFrom = new Map();
+            exploredSet = [];
+
+            openSet.push({ state: start, g: 0, h: manhattanDistance(start, goal) });
+
+            while (openSet.length > 0) {
+                openSet.sort((a, b) => (a.g + a.h) - (b.g + b.h)); // Ordenar por f = g + h
+                const current = openSet.shift();
+
+                // Agregar el estado actual al conjunto explorado
+                exploredSet.push(current.state);
+                renderExploredSet();
+
+                if (arraysEqual(current.state, goal)) {
+                    return reconstructPath(cameFrom, current.state);
+                }
+
+                closedSet.add(current.state.toString());
+
+                const neighbors = getNeighbors(current.state);
+
+                for (let neighbor of neighbors) {
+                    if (closedSet.has(neighbor.toString())) {
+                        continue;
+                    }
+
+                    const tentative_gScore = current.g + 1;
+
+                    const existingNeighbor = openSet.find(n => arraysEqual(n.state, neighbor));
+
+                    if (!existingNeighbor || tentative_gScore < existingNeighbor.g) {
+                        cameFrom.set(neighbor.toString(), current.state);
+                        if (!existingNeighbor) {
+                            openSet.push({
+                                state: neighbor,
+                                g: tentative_gScore,
+                                h: manhattanDistance(neighbor, goal)
+                            });
+                        }
+                    }
+                }
+            }
+
+            return null; // No se encontró solución
+        }
+
+        // Heurística: distancia de Manhattan
+        function manhattanDistance(state, goal) {
+            let distance = 0;
+            for (let i = 0; i < state.length; i++) {
+                if (state[i] !== 0) {
+                    const goalIndex = goal.indexOf(state[i]);
+                    const x1 = i % 3, y1 = Math.floor(i / 3);
+                    const x2 = goalIndex % 3, y2 = Math.floor(goalIndex / 3);
+                    distance += Math.abs(x1 - x2) + Math.abs(y1 - y2);
+                }
+            }
+            return distance;
+        }
+
+        // Obtener vecinos válidos (movimientos posibles)
+        function getNeighbors(state) {
+            const neighbors = [];
+            const emptyIndex = state.indexOf(0);
+            const row = Math.floor(emptyIndex / 3);
+            const col = emptyIndex % 3;
+
+            const moves = [
+                { row: -1, col: 0 }, // Arriba
+                { row: 1, col: 0 },  // Abajo
+                { row: 0, col: -1 }, // Izquierda
+                { row: 0, col: 1 }   // Derecha
+            ];
+
+            for (let move of moves) {
+                const newRow = row + move.row;
+                const newCol = col + move.col;
+                if (newRow >= 0 && newRow < 3 && newCol >= 0 && newCol < 3) {
+                    const newIndex = newRow * 3 + newCol;
+                    const newState = state.slice();
+                    [newState[emptyIndex], newState[newIndex]] = [newState[newIndex], newState[emptyIndex]];
+                    neighbors.push(newState);
+                }
+            }
+
+            return neighbors;
+        }
+
+        // Reconstruir el camino desde el estado meta hasta el inicial
+        function reconstructPath(cameFrom, currentState) {
+            const totalPath = [currentState];
+            while (cameFrom.has(currentState.toString())) {
+                currentState = cameFrom.get(currentState.toString());
+                totalPath.unshift(currentState);
+            }
+            return totalPath;
+        }
+
+        // Comparar dos arreglos
+        function arraysEqual(arr1, arr2) {
+            return arr1.length === arr2.length && arr1.every((value, index) => value === arr2[index]);
+        }
+
+        // Generar un rompecabezas aleatorio
+        function generateRandomPuzzle() {
+            let newPuzzle;
+            do {
+                newPuzzle = shuffleArray([1, 2, 3, 4, 5, 6, 7, 8, 0]);
+            } while (!isSolvable(newPuzzle));
+            puzzle = newPuzzle;
+            renderPuzzle();
+            exploredSet = [];
+            renderExploredSet();
+        }
+
+        // Mezclar el arreglo de forma aleatoria
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // Verificar si el rompecabezas es resoluble
+        function isSolvable(puzzle) {
+            let inversions = 0;
+            const flatPuzzle = puzzle.filter(num => num !== 0);
+
+            for (let i = 0; i < flatPuzzle.length; i++) {
+                for (let j = i + 1; j < flatPuzzle.length; j++) {
+                    if (flatPuzzle[i] > flatPuzzle[j]) inversions++;
+                }
+            }
+            return inversions % 2 === 0;
+        }
+
+        // Reiniciar el rompecabezas al estado inicial
+        function resetPuzzle() {
+            puzzle = [1, 2, 3, 4, 5, 6, 0, 7, 8];
+            renderPuzzle();
+            exploredSet = [];
+            renderExploredSet();
+        }
+
+        // Renderizado inicial
+        renderPuzzle();
+    </script>
+
+</body>
+
+</html>
